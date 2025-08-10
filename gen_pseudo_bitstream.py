@@ -6,10 +6,10 @@ array_height = 4
 
 lut_input_size = 4
 
-net_file_path = "rudra_testing_simple/temp/fulladd.net.post_routing"
-fasm_file_path = "rudra_testing_simple/temp/fulladd.fasm"
-place_file_path = "rudra_testing_simple/temp/fulladd.place"
-route_file_path = "rudra_testing_simple/temp/fulladd.route"
+net_file_path = "rudra_testing_0/temp/toggle.net.post_routing"
+fasm_file_path = "rudra_testing_0/temp/toggle.fasm"
+place_file_path = "rudra_testing_0/temp/toggle.place"
+route_file_path = "rudra_testing_0/temp/toggle.route"
 
 
 # outputs
