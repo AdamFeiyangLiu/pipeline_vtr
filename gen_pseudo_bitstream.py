@@ -6,6 +6,8 @@ array_height = 4
 
 lut_input_size = 4
 
+channel_width = 8
+
 net_file_path = "rudra_testing_0/temp/toggle.net.post_routing"
 fasm_file_path = "rudra_testing_0/temp/toggle.fasm"
 place_file_path = "rudra_testing_0/temp/toggle.place"
@@ -44,15 +46,27 @@ bottom_edge_connection_box_config = [connection_box_unknown] * (array_width - 2)
 right_edge_connection_box_config = [connection_box_unknown] * (array_height - 2)
 top_edge_connection_box_config = [connection_box_unknown] * (array_width - 2)
 
-bottom_left_corner_switch_box_config = [switch_box_choose_unknown]
-bottom_right_corner_switch_box_config = [switch_box_choose_unknown]
-top_right_corner_switch_box_config = [switch_box_choose_unknown]
-top_left_corner_switch_box_config = [switch_box_choose_unknown]
+# # goes from track 0 to track channel_width
+# bottom_left_corner_switch_box_config = [switch_box_choose_unknown] * channel_width
+# bottom_right_corner_switch_box_config = [switch_box_choose_unknown] * channel_width
+# top_right_corner_switch_box_config = [switch_box_choose_unknown] * channel_width
+# top_left_corner_switch_box_config = [switch_box_choose_unknown] * channel_width
 
-left_edge_switch_box_config = [switch_box_choose_unknown] * (array_height - 3)
-bottom_edge_switch_box_config = [switch_box_choose_unknown] * (array_width - 3)
-right_edge_switch_box_config = [switch_box_choose_unknown] * (array_height - 3)
-top_edge_switch_box_config = [switch_box_choose_unknown] * (array_width - 3)
+# # goes channel_width vertical wires then channel_width/2 horizontal wires
+# left_edge_switch_box_configs = [[switch_box_choose_unknown] * (int)((channel_width + channel_width/2))] * (array_height - 3)
+# # goes channel_width/2 vertical wires then channel_width horizontal wires
+# bottom_edge_switch_box_configs = [[switch_box_choose_unknown] * (int)((channel_width + channel_width/2))] * (array_width - 3)
+# # goes channel_width vertical wires then channel_width/2 horizontal wires
+# right_edge_switch_box_configs = [[switch_box_choose_unknown] * (int)((channel_width + channel_width/2))] * (array_height - 3)
+# # goes channel_width/2 vertical wires then channel_width horizontal wires
+# top_edge_switch_box_configs = [[switch_box_choose_unknown] * (int)((channel_width + channel_width/2))] * (array_width - 3)
+
+# goes channel_width vertical wires then channel_width horizontal wires
+switch_box_configs = [[switch_box_choose_unknown] * (channel_width + channel_width)] * (array_width - 1) * (array_height - 1)
+
+# the first element in the array is the left connection box for this lut, then the bottom, then the right, then the top
+# row major order starting from the bottom left (e.g. connection box for bottom left lut is element 0, connection box for lut directly to the right of the bottom left lut is element 1, etc.)
+connection_box_configs = [([None] * (4))] * (array_width - 2) * (array_height - 2)
 
 def place_file_to_list_of_dicts():
     place_file = open(place_file_path, "r")
@@ -95,6 +109,86 @@ def fasm_file_get_lut_bits_as_list(lut_num):
     return []
 
 
+def parse_route_file_location(route_file_location):
+    parts = route_file_location.strip("()").split(",")
+
+    # Convert to integers
+    x, y, z = map(int, parts)
+    return (x,y)    
+
+def set_switch_box_config(x, y, conf):
+    switch_box_configs[x + y*(array_width-1)] = conf
+
+
+def process_route_file():
+    route_file = open(route_file_path, "r")
+    while(route_file.readline()):
+            # Look ahead to the next line without losing position
+            pos = route_file.tell()
+            next_line = route_file.readline()
+            route_file.seek(pos) 
+            if next_line.startswith("Node"):
+                break
+    
+
+    l = []
+    for line in route_file:
+        if line.strip() == '':
+            break
+        parts = line.split()
+        # type can be either "SOURCE", "OPIN", "CHANX", "CHANY", "IPIN", or "SINK"
+        # location is a coordinate type e.g. (1, 1, 0)
+        # location_type is either "Class", "Pin", or "Track"
+        # track is the track number if and only if the location_type is "Track"
+        l.append({
+            "type": parts[2],
+            "location": parts[3],
+            "location_type": parts[4],
+            "track": parts[5],
+        })
+    
+
+    index = 0
+    while (index < len(l)):
+        val = l[index]
+        if (index < len(l) - 1):
+            nextval = l[index + 1]
+        if (index > 0):
+            prevval = l[index - 1]
+        if val["type"] == "SOURCE":
+            index += 1
+            pass
+        # if we see an OPIN, then we need to look at the next node to set the switch box config appropriately
+        if val["type"] == "OPIN":
+            x,y = parse_route_file_location(val["location"])
+            nextx, nexty = parse_route_file_location(nextval["location"])
+            assert(nextval["location_type"] == "Track")
+            nexttrack = int(nextval["track"])
+            if nexttrack == 0 or nexttrack == 2:
+                set_switch_box_config(nextx - 1, nexty, switch_box_choose_clb)
+            elif nexttrack == 1 or nexttrack == 3:
+                set_switch_box_config(nextx, nexty, switch_box_choose_clb)
+            index += 1
+            pass
+        if val["type"] == "CHANX":
+            index += 1
+            pass
+        if val["type"] == "CHANY":
+            index += 1
+            pass
+        if val["type"] == "IPIN":
+            index += 1
+            pass
+        if val["type"] == "SINK":
+            index += 1
+            pass
+
+
+        print(val)
+        
+
+
+
 if __name__ == "__main__":
     # this list of dictionaries includes each block (including io blocks)
     all_blocks = place_file_to_list_of_dicts()
@@ -109,6 +203,9 @@ if __name__ == "__main__":
         # subtract 1 from x and y coordinates due to io on bottom and left
         set_lut_config(item["x"]-1, item["y"]-1, config)
 
-    print(lut_configs)
+    process_route_file()
 
-    print(all_blocks)
+
+    # print(lut_configs)
+
+    # print(all_blocks)
