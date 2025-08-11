@@ -12,12 +12,47 @@ place_file_path = "rudra_testing_0/temp/toggle.place"
 route_file_path = "rudra_testing_0/temp/toggle.route"
 
 
+
+connection_box_chan_0 = 0
+connection_box_chan_0 = 1
+connection_box_chan_0 = 2
+connection_box_chan_0 = 3
+connection_box_chan_0 = 4
+connection_box_chan_0 = 5
+connection_box_chan_0 = 6
+connection_box_chan_0 = 7
+connection_box_z = 1000
+connection_box_unknown = None
+
+switch_box_choose_left = 0
+switch_box_choose_bottom = 1
+switch_box_choose_right = 2
+switch_box_choose_top = 3
+switch_box_choose_clb = 4
+switch_box_choose_unknown = None
+
+
 # outputs
 
+# for a lut, "None" means that we don't care what bits are in the SRAM since that LUT isn't used
 # [[None, None, None, ...], [None, None, None, ...], ...]
 lut_configs = [([None] * (lut_input_size**2))] * (array_width - 2) * (array_height - 2)
 
 
+left_edge_connection_box_config = [connection_box_unknown]  * (array_height - 2)
+bottom_edge_connection_box_config = [connection_box_unknown] * (array_width - 2)
+right_edge_connection_box_config = [connection_box_unknown] * (array_height - 2)
+top_edge_connection_box_config = [connection_box_unknown] * (array_width - 2)
+
+bottom_left_corner_switch_box_config = [switch_box_choose_unknown]
+bottom_right_corner_switch_box_config = [switch_box_choose_unknown]
+top_right_corner_switch_box_config = [switch_box_choose_unknown]
+top_left_corner_switch_box_config = [switch_box_choose_unknown]
+
+left_edge_switch_box_config = [switch_box_choose_unknown] * (array_height - 3)
+bottom_edge_switch_box_config = [switch_box_choose_unknown] * (array_width - 3)
+right_edge_switch_box_config = [switch_box_choose_unknown] * (array_height - 3)
+top_edge_switch_box_config = [switch_box_choose_unknown] * (array_width - 3)
 
 def place_file_to_list_of_dicts():
     place_file = open(place_file_path, "r")
@@ -76,3 +111,4 @@ if __name__ == "__main__":
 
     print(lut_configs)
 
+    print(all_blocks)
