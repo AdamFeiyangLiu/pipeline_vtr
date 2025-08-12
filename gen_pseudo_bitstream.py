@@ -1,4 +1,5 @@
 import re
+import copy
 
 # config:
 array_width = 4
@@ -13,38 +14,39 @@ fasm_file_path = "rudra_testing_0/temp/toggle.fasm"
 place_file_path = "rudra_testing_0/temp/toggle.place"
 route_file_path = "rudra_testing_0/temp/toggle.route"
 
+connection_box_chan_0 = 1<<0
+connection_box_chan_1 = 1<<1
+connection_box_chan_2 = 1<<2
+connection_box_chan_3 = 1<<3
+connection_box_chan_4 = 1<<4
+connection_box_chan_5 = 1<<5
+connection_box_chan_6 = 1<<6
+connection_box_chan_7 = 1<<7
+connection_box_z = 1<<8
+connection_box_unknown = 0
 
-
-connection_box_chan_0 = 0
-connection_box_chan_0 = 1
-connection_box_chan_0 = 2
-connection_box_chan_0 = 3
-connection_box_chan_0 = 4
-connection_box_chan_0 = 5
-connection_box_chan_0 = 6
-connection_box_chan_0 = 7
-connection_box_z = 1000
-connection_box_unknown = None
-
-switch_box_choose_left = 0
-switch_box_choose_bottom = 1
-switch_box_choose_right = 2
-switch_box_choose_top = 3
-switch_box_choose_clb = 4
-switch_box_choose_unknown = None
+switch_box_choose_left = 1<<0
+switch_box_choose_bottom = 1<<1
+switch_box_choose_right = 1<<2
+switch_box_choose_top = 1<<3
+switch_box_choose_clb = 1<<4
+switch_box_choose_unknown = 0
 
 
 # outputs
 
 # for a lut, "None" means that we don't care what bits are in the SRAM since that LUT isn't used
 # [[None, None, None, ...], [None, None, None, ...], ...]
-lut_configs = [([None] * (lut_input_size**2))] * (array_width - 2) * (array_height - 2)
+lut_configs = [[None] * (lut_input_size**2) for _ in range((array_width - 2) * (array_height - 2))]
 
-
-left_edge_connection_box_config = [connection_box_unknown]  * (array_height - 2)
-bottom_edge_connection_box_config = [connection_box_unknown] * (array_width - 2)
-right_edge_connection_box_config = [connection_box_unknown] * (array_height - 2)
-top_edge_connection_box_config = [connection_box_unknown] * (array_width - 2)
+# goes from bottom to top
+left_edge_connection_box_config = [connection_box_unknown for _ in range(array_height - 2)]
+# goes from left to right
+bottom_edge_connection_box_config = [connection_box_unknown for _ in range(array_width - 2)]
+# goes from bottom to top
+right_edge_connection_box_config = [connection_box_unknown for _ in range(array_height - 2)]
+# goes from left to right
+top_edge_connection_box_config = [connection_box_unknown for _ in range(array_width - 2)]
 
 # # goes from track 0 to track channel_width
 # bottom_left_corner_switch_box_config = [switch_box_choose_unknown] * channel_width
@@ -62,11 +64,11 @@ top_edge_connection_box_config = [connection_box_unknown] * (array_width - 2)
 # top_edge_switch_box_configs = [[switch_box_choose_unknown] * (int)((channel_width + channel_width/2))] * (array_width - 3)
 
 # goes channel_width vertical wires then channel_width horizontal wires
-switch_box_configs = [[switch_box_choose_unknown] * (channel_width + channel_width)] * (array_width - 1) * (array_height - 1)
+switch_box_configs = [[switch_box_choose_unknown for _ in range(channel_width * 2)] for _ in range((array_width - 1) * (array_height - 1))]
 
 # the first element in the array is the left connection box for this lut, then the bottom, then the right, then the top
 # row major order starting from the bottom left (e.g. connection box for bottom left lut is element 0, connection box for lut directly to the right of the bottom left lut is element 1, etc.)
-connection_box_configs = [([None] * (4))] * (array_width - 2) * (array_height - 2)
+connection_box_configs = [[switch_box_choose_unknown for _ in range(4)] for _ in range((array_width - 2) * (array_height - 2))]
 
 def place_file_to_list_of_dicts():
     place_file = open(place_file_path, "r")
@@ -116,9 +118,35 @@ def parse_route_file_location(route_file_location):
     x, y, z = map(int, parts)
     return (x,y)    
 
-def set_switch_box_config(x, y, conf):
-    switch_box_configs[x + y*(array_width-1)] = conf
+def set_switch_box_config(x, y, track, dir, conf):
+    if dir == "horizontal":
+        switch_box_configs[x + y*(array_width-1)][track + channel_width] = conf
+    else:
+        switch_box_configs[x + y*(array_width-1)][track] = conf
 
+def track_to_connection_box_config(track):
+    return 1 << track
+
+# note that edge is technically redundant since you can figure out the edge from the x and y coordinates, but i included it for clarity purposes
+def set_edge_connection_box_config(x, y, edge, conf):
+    if edge == "left":
+        left_edge_connection_box_config[y - 1] = conf
+    if edge == "bottom":
+        bottom_edge_connection_box_config[x - 1] = conf
+    if edge == "right":
+        right_edge_connection_box_config[y - 1] = conf
+    if edge == "top":
+        top_edge_connection_box_config[x - 1] = conf
+
+def set_connection_box_config(lutx, luty, side, conf):
+    if side == "left":
+        connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][0] = conf
+    if side == "bottom":
+        connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][1] = conf
+    if side == "right":
+        connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][2] = conf
+    if side == "top":
+        connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][3] = conf
 
 def process_route_file():
     route_file = open(route_file_path, "r")
@@ -138,7 +166,7 @@ def process_route_file():
         parts = line.split()
         # type can be either "SOURCE", "OPIN", "CHANX", "CHANY", "IPIN", or "SINK"
         # location is a coordinate type e.g. (1, 1, 0)
-        # location_type is either "Class", "Pin", or "Track"
+        # location_type is either "Class:", "Pin:", "Track:", or "Pad:"
         # track is the track number if and only if the location_type is "Track"
         l.append({
             "type": parts[2],
@@ -155,25 +183,87 @@ def process_route_file():
             nextval = l[index + 1]
         if (index > 0):
             prevval = l[index - 1]
+
+
         if val["type"] == "SOURCE":
             index += 1
             pass
-        # if we see an OPIN, then we need to look at the next node to set the switch box config appropriately
         if val["type"] == "OPIN":
-            x,y = parse_route_file_location(val["location"])
-            nextx, nexty = parse_route_file_location(nextval["location"])
-            assert(nextval["location_type"] == "Track")
-            nexttrack = int(nextval["track"])
-            if nexttrack == 0 or nexttrack == 2:
-                set_switch_box_config(nextx - 1, nexty, switch_box_choose_clb)
-            elif nexttrack == 1 or nexttrack == 3:
-                set_switch_box_config(nextx, nexty, switch_box_choose_clb)
+            # if clb output
+            if val["location_type"] == "Pin:":
+                x,y = parse_route_file_location(val["location"])
+                nextx, nexty = parse_route_file_location(nextval["location"])
+                nexttrack = int(nextval["track"])
+                if nexttrack == 0 or nexttrack == 2:
+                    set_switch_box_config(nextx - 1, nexty, nexttrack, "horizontal", switch_box_choose_clb)
+                elif nexttrack == 1 or nexttrack == 3:
+                    set_switch_box_config(nextx, nexty, nexttrack, "horizontal", switch_box_choose_clb)
+            # if io pad output
+            if val["location_type"] == "Pad:":
+                # TODO
+                pass
             index += 1
             pass
         if val["type"] == "CHANX":
+            if nextval["type"] == "CHANX":
+                x,y = parse_route_file_location(val["location"])
+                nextx, nexty = parse_route_file_location(nextval["location"])
+                nexttrack = int(nextval["track"])
+                nextdir = "horizontal"
+                if nextx < x:
+                    set_switch_box_config(nextx, y, nexttrack, nextdir, switch_box_choose_right)
+                else:
+                    set_switch_box_config(nextx, y, nexttrack, nextdir, switch_box_choose_left)
+
+            if nextval["type"] == "CHANY":
+                x,y = parse_route_file_location(val["location"])
+                nextx, nexty = parse_route_file_location(nextval["location"])
+                nexttrack = int(nextval["track"])
+                nextdir = "vertical"
+                if nextx < x:
+                    set_switch_box_config(nextx, y, nexttrack, nextdir, switch_box_choose_right)
+                else:
+                    set_switch_box_config(nextx, y, nexttrack, nextdir, switch_box_choose_left)
+
+            if nextval["type"] == "IPIN":
+                # if connected to io pad
+                if nextval["location_type"] == "Pad:":
+                    # TODO
+                    pass
+                # if connected to input pin of clb
+                if nextval["location_type"] == "Pin:":
+                    x,y = parse_route_file_location(val["location"])
+                    nextx,nexty = parse_route_file_location(nextval["location"])
+                    track = int(val["track"])
+                    if nexty > y:
+                        set_connection_box_config(nextx, nexty, "bottom", track_to_connection_box_config(track))
+                    else:
+                        set_connection_box_config(nextx, nexty, "top", track_to_connection_box_config(track))
+                    pass
             index += 1
             pass
         if val["type"] == "CHANY":
+            if nextval["type"] == "CHANX":
+                # TODO
+                pass
+            if nextval["type"] == "CHANY":
+                # TODO
+                pass
+            if nextval["type"] == "IPIN":
+                # if connected to io pad
+                if nextval["location_type"] == "Pad:":
+                    nextx,nexty = parse_route_file_location(nextval["location"])
+                    track = int(val["track"])
+                    # if pad is on right edge of fpga
+                    if nextx == array_width - 1:
+                        set_edge_connection_box_config(nextx, nexty, "right", track_to_connection_box_config(track))
+                    elif nextx == 0:
+                        set_edge_connection_box_config(nextx, nexty, "left", track_to_connection_box_config(track))
+                    pass
+                # if connected to input pin of clb
+                if nextval["location_type"] == "Pin:":
+                    # TODO
+                    pass
             index += 1
             pass
         if val["type"] == "IPIN":
@@ -182,9 +272,6 @@ def process_route_file():
         if val["type"] == "SINK":
             index += 1
             pass
-
-
-        print(val)
         
 
 
@@ -205,7 +292,25 @@ if __name__ == "__main__":
 
     process_route_file()
 
+    print("lut configs:")
+    print(lut_configs)
+    print("\n\n\n\n")
 
-    # print(lut_configs)
+    print("connection box configs:")
+    print(connection_box_configs)
+    print("\n\n\n\n")
 
-    # print(all_blocks)
+    print("switch box configs:")
+    print(switch_box_configs)
+    print("\n\n\n\n")
+
+    print("edge connection box configs:")
+    print("left edge:")
+    print(left_edge_connection_box_config)
+    print("bottom edge:")
+    print(bottom_edge_connection_box_config)
+    print("right edge:")
+    print(right_edge_connection_box_config)
+    print("top edge:")
+    print(top_edge_connection_box_config)
+    print("\n\n\n\n")
