@@ -1,5 +1,7 @@
 import re
+import sys
 import copy
+import traceback
 
 # config:
 array_width = 4
@@ -30,6 +32,7 @@ switch_box_choose_bottom = 1<<1
 switch_box_choose_right = 1<<2
 switch_box_choose_top = 1<<3
 switch_box_choose_clb = 1<<4
+switch_box_choose_io_pad = 1 << 5
 switch_box_choose_unknown = 0
 
 
@@ -69,6 +72,19 @@ switch_box_configs = [[switch_box_choose_unknown for _ in range(channel_width * 
 # the first element in the array is the left connection box for this lut, then the bottom, then the right, then the top
 # row major order starting from the bottom left (e.g. connection box for bottom left lut is element 0, connection box for lut directly to the right of the bottom left lut is element 1, etc.)
 connection_box_configs = [[switch_box_choose_unknown for _ in range(4)] for _ in range((array_width - 2) * (array_height - 2))]
+
+def error(message: str):
+    # ANSI code for red text
+    RED = "\033[91m"
+    RESET = "\033[0m"
+
+    # Print the custom error message in red
+    print(f"{RED}ERROR: {message}{RESET}", file=sys.stderr)
+
+    # Print traceback of where this function was called
+    tb = "".join(traceback.format_stack(limit=5))  # limit=5 to avoid too much noise
+    print(f"{RED}Traceback (most recent call last):\n{tb}{RESET}", file=sys.stderr)
+    sys.exit(1)
 
 def place_file_to_list_of_dicts():
     place_file = open(place_file_path, "r")
@@ -124,8 +140,7 @@ def set_switch_box_config(x, y, track, dir, conf):
     elif dir == "vertical":
         switch_box_configs[x + y*(array_width-1)][track] = conf
     else:
-        print("ERROR")
-        return None
+        error("the switch box direction isn't horizontal or vertical")
 
     
 def get_switch_box_config(x, y, track, dir):
@@ -134,8 +149,8 @@ def get_switch_box_config(x, y, track, dir):
     elif dir == "vertical":
         return switch_box_configs[x + y*(array_width-1)][track]
     else:
-        print("ERROR")
-        return None
+        error("the switch box direction isn't horizontal or vertical")
+
 
 def track_to_connection_box_config(track):
     return 1 << track
@@ -156,7 +171,7 @@ def get_edge_connection_box_config(x, y, edge):
         return left_edge_connection_box_config[y-1]
     if edge == "bottom":
         return bottom_edge_connection_box_config[x-1]
-    if edge = "right":
+    if edge == "right":
         return right_edge_connection_box_config[y-1]
     if edge == "top":
         return top_edge_connection_box_config[x-1]
@@ -326,21 +341,56 @@ def map_edge_connection_box_config_to_bits(x, y, edge):
         return "111"
 
 def map_connection_box_config_to_bits(lutx, luty, side):
-    if side == "left":
+    if side == "left" or side == "bottom":
         if get_connection_box_config(lutx, luty, side) == connection_box_chan_0:
-            print("NO")
-            return "ERROR"
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 0, which is invalid.")
         if get_connection_box_config(lutx, luty, side) == connection_box_chan_1:
-            print("NO")
-            return "ERROR"
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 1, which is invalid.")
         if get_connection_box_config(lutx, luty, side) == connection_box_chan_2:
             return "00"
         if get_connection_box_config(lutx, luty, side) == connection_box_chan_3:
             return "01"
-    # TODO: finish this
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_4:
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 4, which is invalid.")
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_5:
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 5, which is invalid.")
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_6:
+            return "10"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_7:
+            return "11"
 
+    if side == "right" or side == "top":
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_0:
+            return "00"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_1:
+            return "01"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_2:
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 2, which is invalid.")
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_3:
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 3, which is invalid.")
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_4:
+            return "10"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_5:
+            return "11"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_6:
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 6, which is invalid.")
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_7:
+            error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 7, which is invalid.")
+        
 def is_normal_switch_box(x, y):
-    if x > 0 and x < array_width - 1 and y > 0 and y < array_width - 1:
+    if x > 0 and x < array_width - 1 - 1 and y > 0 and y < array_height - 1 - 1:
+        return True
+    else:
+        return False
+
+def is_left_edge_switch_box(x, y):
+    if x == 0 and y > 0 and y < array_height - 1 - 1:
+        return True
+    else:
+        return False
+
+def is top_edge_switch_box(x, y):
+    if x > 0 and x < array_width - 1 - 1 and y == array_height - 1 - 1:
         return True
     else:
         return False
@@ -352,54 +402,154 @@ def map_switch_box_config_to_bits(x, y):
         # iterate [0,3]
         for i in range(channel_width/2):
             # right_to_left[i]
-            if get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_clb:
-                output.append("00")
-            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_left:
+            if get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_clb:
+                if i == 0 or i == 1:
+                    output.append("00")
+                else:
+                    print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_left:
                 print("ERROR")
-                output.append("NO")
-            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_bottom:
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_bottom:
                 output.append("11")
-            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_right:
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_right:
                 output.append("01")
-            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_top:
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_top:
                 output.append("10")
-            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_unknown:
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_io_pad:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_unknown:
                 print("DELETETHISERROR")
                 output.append("ARBITRARY")
 
             # left_to_right[i]
-            if get_switch_box_config(x, y, i, "horizontal") == switch_box_choose_clb:
-                output.append("01")
-            elif get_switch_box_config(x, y, i, "horizontal") == switch_box_choose_left:
+            if get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_clb:
+                if i == 0 or i == 1:
+                    output.append("01")
+                else:
+                    print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_left:
                 output.append("00")
-            elif get_switch_box_config(x, y, i, "horizontal") == switch_box_choose_bottom:
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_bottom:
                 output.append("11")
-            elif get_switch_box_config(x, y, i, "horizontal") == switch_box_choose_right:
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_right:
                 print("ERROR")
-                output.append("NO")
-            elif get_switch_box_config(x, y, i, "horizontal") == switch_box_choose_top:
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_top:
                 output.append("10")
-            elif get_switch_box_config(x, y, i, "horizontal") == switch_box_choose_unknown:
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_io_pad:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_unknown:
                 print("DELETETHISERROR")
                 output.append("ARBITRARY")
             
             # down_to_up[i]
-            if get_switch_box_config(x, y, i, "vertical") == switch_box_choose_clb:
+            if get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_clb:
                 print("ERROR")
-            elif get_switch_box_config(x, y, i, "vertical") == switch_box_choose_left:
-                output.apend("00")
-            elif get_switch_box_config(x, y, i, "vertical") == switch_box_choose_bottom:
-                output.append("10")
-            elif get_switch_box_config(x, y, i, "vertical") == switch_box_choose_right:
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_left:
+                output.append("00")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_bottom:
+                output.append("11")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_right:
                 output.append("01")
-            elif get_switch_box_config(x, y, i, "vertical") == switch_box_choose_top:
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_top:
                 print("ERROR")
-            elif get_switch_box_config(x, y, i, "vertical") == switch_box_choose_unknown:
+            elif get_switch_box_config(x, y, 2*i, "vertial") == switch_box_choose_io_pad:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_unknown:
                 print("DELETETHISERROR")
                 output.append("ARBITRARY")
 
             # up_to_down[i]
-            if get_switch_box_config(x, y, i, "vertical") = switch_box
+            if get_switch_box_config(x, y, 2*i+1, "vertical") = switch_box_choose_clb:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_left:
+                output.append("00")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_bottom:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_right:
+                output.append("01")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_top:
+                output.append("10")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_io_pad:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_unknown:
+                print("DELETETHISERROR")
+                output.append("ARBITRARY")
+
+    if is_left_edge_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(channel_width/2):
+            # right_to_left[i]
+            if get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_clb:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_left:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_bottom:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_right:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_top:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_io_pad:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "horizontal") == switch_box_choose_unknown:
+                print("EXPECTED")
+                output.append("ARBITRARY")
+
+            # left_to_right[i]
+            if get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_clb:
+                if i == 0 or i == 1:
+                    output.append("01")
+                else:
+                    print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_left:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_bottom:
+                output.append("11")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_right:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_top:
+                output.append("10")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_io_pad:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "horizontal") == switch_box_choose_unknown:
+                print("DELETETHISERROR")
+                output.append("ARBITRARY")
+            
+            # down_to_up[i]
+            if get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_clb:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_left:
+                output.append("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_bottom:
+                output.append("11")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_right:
+                output.append("01")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_top:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i, "vertial") == switch_box_choose_io_pad:
+                print("TODO RUDRA")
+            elif get_switch_box_config(x, y, 2*i, "vertical") == switch_box_choose_unknown:
+                print("DELETETHISERROR")
+                output.append("ARBITRARY")
+
+            # up_to_down[i]
+            if get_switch_box_config(x, y, 2*i+1, "vertical") = switch_box_choose_clb:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_left:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_bottom:
+                print("ERROR")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_right:
+                output.append("01")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_top:
+                output.append("10")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_io_pad:
+                print("TODO RUDRA")
+            elif get_switch_box_config(x, y, 2*i+1, "vertical") == switch_box_choose_unknown:
+                print("DELETETHISERROR")
+                output.append("ARBITRARY")
+
+    if is_top_edge_switch_box(x,y):
 
 
 
