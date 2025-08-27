@@ -121,8 +121,21 @@ def parse_route_file_location(route_file_location):
 def set_switch_box_config(x, y, track, dir, conf):
     if dir == "horizontal":
         switch_box_configs[x + y*(array_width-1)][track + channel_width] = conf
-    else:
+    elif dir == "vertical":
         switch_box_configs[x + y*(array_width-1)][track] = conf
+    else:
+        print("ERROR")
+        return None
+
+    
+def get_switch_box_config(x, y, track, dir):
+    if dir == "horizontal":
+        return switch_box_configs[x + y*(array_width-1)][track + channel_width]
+    elif dir == "vertical":
+        return switch_box_configs[x + y*(array_width-1)][track]
+    else:
+        print("ERROR")
+        return None
 
 def track_to_connection_box_config(track):
     return 1 << track
@@ -312,8 +325,51 @@ def map_edge_connection_box_config_to_bits(x, y, edge):
     if get_edge_connection_box_config(x, y, edge) == connection_box_chan_7:
         return "111"
 
-def map_connection_box_config_to_bits(x, y, side):
-    if edge == "left":
+def map_connection_box_config_to_bits(lutx, luty, side):
+    if side == "left":
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_0:
+            print("NO")
+            return "ERROR"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_1:
+            print("NO")
+            return "ERROR"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_2:
+            return "00"
+        if get_connection_box_config(lutx, luty, side) == connection_box_chan_3:
+            return "01"
+    # TODO: finish this
+
+def is_normal_switch_box(x, y):
+    if x > 0 and x < array_width - 1 and y > 0 and y < array_width - 1:
+        return True
+    else:
+        return False
+
+def map_switch_box_config_to_bits(x, y):
+    output = ""
+    # case for normal switchbox
+    if is_normal_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(channel_width/2):
+            # right_to_left[0]
+            if get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_clb:
+                output.append("00")
+            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_left:
+                print("ERROR")
+                output.append("NO")
+            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_bottom:
+                output.append("11")
+            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_right:
+                output.append("01")
+            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_top:
+                output.append("10")
+            elif get_switch_box_config(x, y, i+1, "horizontal") == switch_box_choose_unknown:
+                print("ERROR")
+                output.append("NO")
+
+
+
+        
 
 
 def generate_bitstream_from_config_arrays():
