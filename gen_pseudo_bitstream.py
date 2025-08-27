@@ -9,10 +9,10 @@ lut_input_size = 4
 
 channel_width = 8
 
-net_file_path = "rudra_testing_0/temp/toggle.net.post_routing"
-fasm_file_path = "rudra_testing_0/temp/toggle.fasm"
-place_file_path = "rudra_testing_0/temp/toggle.place"
-route_file_path = "rudra_testing_0/temp/toggle.route"
+net_file_path = "universal_switchbox/temp/toggle.net.post_routing"
+fasm_file_path = "universal_switchbox/temp/toggle.fasm"
+place_file_path = "universal_switchbox/temp/toggle.place"
+route_file_path = "universal_switchbox/temp/toggle.route"
 
 connection_box_chan_0 = 1<<0
 connection_box_chan_1 = 1<<1
@@ -138,6 +138,16 @@ def set_edge_connection_box_config(x, y, edge, conf):
     if edge == "top":
         top_edge_connection_box_config[x - 1] = conf
 
+def get_edge_connection_box_config(x, y, edge):
+    if edge == "left":
+        return left_edge_connection_box_config[y-1]
+    if edge == "bottom":
+        return bottom_edge_connection_box_config[x-1]
+    if edge = "right":
+        return right_edge_connection_box_config[y-1]
+    if edge == "top":
+        return top_edge_connection_box_config[x-1]
+
 def set_connection_box_config(lutx, luty, side, conf):
     if side == "left":
         connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][0] = conf
@@ -147,6 +157,16 @@ def set_connection_box_config(lutx, luty, side, conf):
         connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][2] = conf
     if side == "top":
         connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][3] = conf
+
+def get_connection_box_config(lutx, luty, side):
+    if side == "left":
+        return connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][0]
+    if side == "bottom":
+        return connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][1]
+    if side == "right":
+        return connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][2]
+    if side == "top":
+        return connection_box_configs[(lutx-1)+(luty-1)*(array_width-2)][3]
 
 def process_route_file():
     route_file = open(route_file_path, "r")
@@ -273,6 +293,30 @@ def process_route_file():
             index += 1
             pass
         
+
+def map_edge_connection_box_config_to_bits(x, y, edge):
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_0:
+        return "000"
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_1:
+        return "001"
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_2:
+        return "010"
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_3:
+        return "011"
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_4:
+        return "100"
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_5:
+        return "101"
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_6:
+        return "110"
+    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_7:
+        return "111"
+
+def map_connection_box_config_to_bits(x, y, side):
+    if edge == "left":
+
+
+def generate_bitstream_from_config_arrays():
 
 
 
