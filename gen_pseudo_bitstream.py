@@ -256,8 +256,13 @@ def process_route_file():
                     set_switch_box_config(nextx, nexty, nexttrack, "horizontal", switch_box_choose_clb)
             # if io pad output
             if val["location_type"] == "Pad:":
-                # TODO
-                pass
+                x,y = parse_route_file_location(val["location"])
+                nextx, nexty = parse_route_file_location(nextval["location"])
+                nexttrack = int(nextval["track"])
+                if nexttrack == 4:
+                    set_switch_box_config(nextx - 1, nexty, nexttrack, "horizontal", switch_box_choose_io_pad)
+                elif nexttrack == 5:
+                    set_switch_box_config(nextx, nexty, nexttrack, "horizontal", switch_box_choose_io_pad)
             index += 1
             pass
         if val["type"] == "CHANX":
