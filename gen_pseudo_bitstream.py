@@ -483,7 +483,7 @@ def is_bottom_edge_switch_box(x, y):
         return False
     
 def is_bottom_right_corner_switch_box(x, y):
-    if x > 0 and x < array_width - 1 - 1 and y == 0:
+    if x == array_width - 1 - 1 and y == 0:
         return True
     else:
         return False
