@@ -35,12 +35,14 @@ switch_box_choose_clb = 1<<4
 switch_box_choose_io_pad = 1 << 5
 switch_box_choose_unknown = 0
 
+lut_bit_unknown = 0
+
 
 # outputs
 
 # for a lut, "None" means that we don't care what bits are in the SRAM since that LUT isn't used
 # [[None, None, None, ...], [None, None, None, ...], ...]
-lut_configs = [[None] * (lut_input_size**2) for _ in range((array_width - 2) * (array_height - 2))]
+lut_configs = [[lut_bit_unknown] * (lut_input_size**2) for _ in range((array_width - 2) * (array_height - 2))]
 
 # goes from bottom to top
 left_edge_connection_box_config = [connection_box_unknown for _ in range(array_height - 2)]
@@ -113,6 +115,9 @@ def place_file_to_list_of_dicts():
 def set_lut_config(x, y, config):
     lut_configs[x + y*(array_width - 2)] = config
 
+def get_lut_config(x, y):
+    return lut_configs[x + y*(array_width - 2)]
+
 # the bits are on the 0-indexed line (lut_num * 2) + 1 with current fasm ouput
 # for example the bits for lut 2 are on the 6th line of the file (so 0-indexed line number 5)
 def fasm_file_get_lut_bits_as_list(lut_num):
@@ -144,7 +149,6 @@ def set_switch_box_config(x, y, track, dir, conf):
 
     
 def get_switch_box_config(x, y, track, dir):
-    print(f"x = {x}, y = {y}, track = {track}, dir = {dir}")
     if dir == "horizontal":
         return switch_box_configs[x + y*(array_width-1)][track + channel_width]
     elif dir == "vertical":
@@ -322,24 +326,35 @@ def process_route_file():
             index += 1
             pass
         
+def map_lut_config_to_bits(lutx, luty):
+    return "".join(map(str, get_lut_config(lutx - 1, luty - 1)))
+
+def map_ff_config_to_bits(lutx, luty):
+    return "1"
+
+    
+ARBITRARY_3_BITS = "000"
 
 def map_edge_connection_box_config_to_bits(x, y, edge):
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_0:
+    cfg = get_edge_connection_box_config(x, y, edge)
+    if cfg == connection_box_chan_0:
         return "000"
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_1:
+    if cfg == connection_box_chan_1:
         return "001"
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_2:
+    if cfg == connection_box_chan_2:
         return "010"
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_3:
+    if cfg == connection_box_chan_3:
         return "011"
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_4:
+    if cfg == connection_box_chan_4:
         return "100"
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_5:
+    if cfg == connection_box_chan_5:
         return "101"
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_6:
+    if cfg == connection_box_chan_6:
         return "110"
-    if get_edge_connection_box_config(x, y, edge) == connection_box_chan_7:
+    if cfg == connection_box_chan_7:
         return "111"
+    if cfg == connection_box_unknown:
+        return ARBITRARY_3_BITS
 
 def map_connection_box_config_to_bits(lutx, luty, side):
     if side == "left" or side == "bottom":
@@ -359,6 +374,8 @@ def map_connection_box_config_to_bits(lutx, luty, side):
             return "10"
         if get_connection_box_config(lutx, luty, side) == connection_box_chan_7:
             return "11"
+        if get_connection_box_config(lutx, luty, side) == connection_box_unknown:
+            return ARBITRARY_2_BITS
 
     if side == "right" or side == "top":
         if get_connection_box_config(lutx, luty, side) == connection_box_chan_0:
@@ -377,6 +394,8 @@ def map_connection_box_config_to_bits(lutx, luty, side):
             error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 6, which is invalid.")
         if get_connection_box_config(lutx, luty, side) == connection_box_chan_7:
             error(f"The {side} connection box of the LUT at ({lutx},{luty}) is connected to channel 7, which is invalid.")
+        if get_connection_box_config(lutx, luty, side) == connection_box_unknown:
+            return ARBITRARY_2_BITS
         
 def is_normal_switch_box(x, y):
     if x > 0 and x < array_width - 1 - 1 and y > 0 and y < array_height - 1 - 1:
@@ -406,6 +425,13 @@ ARBITRARY_2_BITS = "11"
 
 def map_switch_box_config_to_bits(x, y):
     output = ""
+
+    if (x == 1 and y == 2) or (x == 2 and y == 2):
+        pass
+    else:
+        output = ARBITRARY_2_BITS * 16
+        return output
+
     # case for normal switchbox
     if is_normal_switch_box(x,y):
         # iterate [0,3]
@@ -428,7 +454,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
             # left_to_right[i]
@@ -449,7 +474,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
             
             # down_to_up[i]
@@ -467,7 +491,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
             # up_to_down[i]
@@ -485,7 +508,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
     if is_left_edge_switch_box(x,y):
@@ -506,7 +528,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("EXPECTED")
                 output += ARBITRARY_2_BITS
 
             # left_to_right[i]
@@ -527,7 +548,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
             
             # down_to_up[i]
@@ -545,7 +565,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
             # up_to_down[i]
@@ -563,7 +582,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
     if is_top_edge_switch_box(x,y):
@@ -587,7 +605,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
             # left_to_right[i]
@@ -608,7 +625,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
             
             # down_to_up[i]
@@ -626,7 +642,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("EXPECTED")
                 output += ARBITRARY_2_BITS
 
             # up_to_down[i]
@@ -644,7 +659,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
     if is_top_right_corner_switch_box(x,y):
@@ -668,7 +682,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
             # left_to_right[i]
@@ -686,7 +699,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("EXPECTED")
                 output += ARBITRARY_2_BITS
             
             # down_to_up[i]
@@ -704,7 +716,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
-                print("EXPECTED")
                 output += ARBITRARY_2_BITS
 
             # up_to_down[i]
@@ -722,7 +733,6 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
-                print("DELETETHISERROR")
                 output += ARBITRARY_2_BITS
 
     return output
@@ -733,10 +743,60 @@ def map_switch_box_config_to_bits(x, y):
 
 
 def generate_bitstream_from_config_arrays():
-    sb_config_1_2 = map_switch_box_config_to_bits(1, 2)
-    print(f"sb config1_2: {sb_config_1_2}")
-    sb_config_2_2 = map_switch_box_config_to_bits(2, 2)
-    print(f"sb config2_2: {sb_config_2_2}")
+    bitstream = ""
+    # collect the top io pad configs from left to right
+    for i in range(1, array_width - 1):
+        bitstream += map_edge_connection_box_config_to_bits(i, array_height - 1, "top")
+    # collect the right edge io pad configs from top to bottom
+    for i in range(array_height - 2, 0, -1):
+        bitstream += map_edge_connection_box_config_to_bits(array_width - 1, i, "right")
+    # collect the bottom edge io pad configs from right to left
+    for i in range(array_width - 2, 0, -1):
+        bitstream += map_edge_connection_box_config_to_bits(i, 0, "bottom")
+    # collect the left edge io pad configs from bottom to top
+    for i in range(1, array_height - 1):
+        bitstream += map_edge_connection_box_config_to_bits(0, i, "left")
+
+    # TODO RUDRA STOP THE HARDCODING
+    bitstream += map_switch_box_config_to_bits(0, 2)
+    bitstream += map_connection_box_config_to_bits(1, 2, "top")
+    bitstream += map_switch_box_config_to_bits(1, 2)
+    bitstream += map_connection_box_config_to_bits(2, 2, "top")
+    bitstream += map_switch_box_config_to_bits(2, 2)
+
+    bitstream += map_connection_box_config_to_bits(2, 2, "right")
+    bitstream += map_lut_config_to_bits(2, 2)
+    bitstream += map_ff_config_to_bits(2, 2)
+    bitstream += map_connection_box_config_to_bits(2, 2, "left")
+    bitstream += map_connection_box_config_to_bits(1, 2, "right")
+    bitstream += map_lut_config_to_bits(1, 2)
+    bitstream += map_ff_config_to_bits(1, 2)
+    bitstream += map_connection_box_config_to_bits(1, 2, "left")
+
+    bitstream += map_switch_box_config_to_bits(0, 1)
+    bitstream += map_connection_box_config_to_bits(1, 2, "bottom")
+    bitstream += map_connection_box_config_to_bits(1, 1, "top")
+    bitstream += map_switch_box_config_to_bits(1, 1)
+    bitstream += map_connection_box_config_to_bits(2, 2, "bottom")
+    bitstream += map_connection_box_config_to_bits(2, 1, "top")
+    bitstream += map_switch_box_config_to_bits(2, 1)
+
+    bitstream += map_connection_box_config_to_bits(2, 1, "right")
+    bitstream += map_lut_config_to_bits(2, 1)
+    bitstream += map_ff_config_to_bits(2, 1)
+    bitstream += map_connection_box_config_to_bits(2, 1, "left")
+    bitstream += map_connection_box_config_to_bits(1, 1, "right")
+    bitstream += map_lut_config_to_bits(1, 1)
+    bitstream += map_ff_config_to_bits(1, 1)
+    bitstream += map_connection_box_config_to_bits(1, 1, "left")
+
+    bitstream += map_switch_box_config_to_bits(0, 0)
+    bitstream += map_connection_box_config_to_bits(1, 1, "bottom")
+    bitstream += map_switch_box_config_to_bits(1, 0)
+    bitstream += map_connection_box_config_to_bits(2, 1, "bottom")
+    bitstream += map_switch_box_config_to_bits(2, 1)
+
+    print(bitstream)
 
 
 if __name__ == "__main__":
