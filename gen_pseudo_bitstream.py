@@ -289,7 +289,12 @@ def process_route_file():
             if nextval["type"] == "IPIN":
                 # if connected to io pad
                 if nextval["location_type"] == "Pad:":
-                    # TODO
+                    nextx, nexty = parse_route_file_location(nextval["location"])
+                    track = int(val["track"])
+                    if nexty == array_width - 1:
+                        set_edge_connection_box_config(nextx, nexty, "top", track_to_connection_box_config(track))
+                    elif nexty == 0:
+                        set_edge_connection_box_config(nextx, nexty, "bottom", track_to_connection_box_config(track))
                     pass
                 # if connected to input pin of clb
                 if nextval["location_type"] == "Pin:":
@@ -313,7 +318,7 @@ def process_route_file():
             if nextval["type"] == "IPIN":
                 # if connected to io pad
                 if nextval["location_type"] == "Pad:":
-                    nextx,nexty = parse_route_file_location(nextval["location"])
+                    nextx, nexty = parse_route_file_location(nextval["location"])
                     track = int(val["track"])
                     # if pad is on right edge of fpga
                     if nextx == array_width - 1:
