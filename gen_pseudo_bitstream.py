@@ -3,6 +3,9 @@ import sys
 import copy
 import traceback
 
+
+ARBITRARY_3_BITS = "000"
+ARBITRARY_2_BITS = "00"
 # config:
 array_width = 4
 array_height = 4
@@ -330,10 +333,13 @@ def map_lut_config_to_bits(lutx, luty):
     return "".join(map(str, get_lut_config(lutx - 1, luty - 1)))
 
 def map_ff_config_to_bits(lutx, luty):
-    return "1"
+    if lutx == 2 and luty == 2:
+        return "1"
+    else:
+        return "0"
 
     
-ARBITRARY_3_BITS = "000"
+
 
 def map_edge_connection_box_config_to_bits(x, y, edge):
     cfg = get_edge_connection_box_config(x, y, edge)
@@ -421,9 +427,14 @@ def is_top_right_corner_switch_box(x, y):
     else:
         return False
     
-ARBITRARY_2_BITS = "11"
 
 def map_switch_box_config_to_bits(x, y):
+    RTL_CHOOSE_LEFT = "00"[::-1]
+    RTL_CHOOSE_RIGHT = "01"[::-1]
+    RTL_CHOOSE_UP = "10"[::-1]
+    RTL_CHOOSE_DOWN = "11"[::-1]
+
+
     output = ""
 
     if (x == 1 and y == 2) or (x == 2 and y == 2):
@@ -440,17 +451,17 @@ def map_switch_box_config_to_bits(x, y):
             cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
             if cfg == switch_box_choose_clb:
                 if i == 0 or i == 1:
-                    output += "00"
+                    output += RTL_CHOOSE_LEFT
                 else:
                     print("ERROR")
             elif cfg == switch_box_choose_left:
                 print("ERROR")
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
-                output += "01"
+                output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
-                output += "10"
+                output += RTL_CHOOSE_UP
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
@@ -460,17 +471,17 @@ def map_switch_box_config_to_bits(x, y):
             cfg = get_switch_box_config(x, y, 2*i, "horizontal")
             if cfg == switch_box_choose_clb:
                 if i == 0 or i == 1:
-                    output += "01"
+                    output += RTL_CHOOSE_RIGHT
                 else:
                     print("ERROR")
             elif cfg == switch_box_choose_left:
-                output += "00"
+                output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
                 print("ERROR")
             elif cfg == switch_box_choose_top:
-                output += "10"
+                output += RTL_CHOOSE_UP
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
@@ -481,11 +492,11 @@ def map_switch_box_config_to_bits(x, y):
             if cfg == switch_box_choose_clb:
                 print("ERROR")
             elif cfg == switch_box_choose_left:
-                output += "00"
+                output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
-                output += "01"
+                output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
                 print("ERROR")
             elif cfg == switch_box_choose_io_pad:
@@ -498,13 +509,13 @@ def map_switch_box_config_to_bits(x, y):
             if cfg == switch_box_choose_clb:
                 print("ERROR")
             elif cfg == switch_box_choose_left:
-                output += "00"
+                output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
                 print("ERROR")
             elif cfg == switch_box_choose_right:
-                output += "01"
+                output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
-                output += "10"
+                output += RTL_CHOOSE_UP
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
@@ -534,17 +545,17 @@ def map_switch_box_config_to_bits(x, y):
             cfg = get_switch_box_config(x, y, 2*i, "horizontal")
             if cfg == switch_box_choose_clb:
                 if i == 0 or i == 1:
-                    output += "01"
+                    output += RTL_CHOOSE_RIGHT
                 else:
                     print("ERROR")
             elif cfg == switch_box_choose_left:
                 print("ERROR")
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
                 print("ERROR")
             elif cfg == switch_box_choose_top:
-                output += "10"
+                output += RTL_CHOOSE_UP
             elif cfg == switch_box_choose_io_pad:
                 print("ERROR")
             elif cfg == switch_box_choose_unknown:
@@ -557,9 +568,9 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_left:
                 output += "ERROR"
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
-                output += "01"
+                output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
                 print("ERROR")
             elif cfg == switch_box_choose_io_pad:
@@ -576,9 +587,9 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_bottom:
                 print("ERROR")
             elif cfg == switch_box_choose_right:
-                output += "01"
+                output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
-                output += "10"
+                output += RTL_CHOOSE_UP
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
@@ -591,15 +602,15 @@ def map_switch_box_config_to_bits(x, y):
             cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
             if cfg == switch_box_choose_clb:
                 if i == 0 or i == 1:
-                    output += "00"
+                    output += RTL_CHOOSE_LEFT
                 else:
                     print("ERROR")
             elif cfg == switch_box_choose_left:
                 print("ERROR")
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
-                output += "01"
+                output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
                 print("ERROR")
             elif cfg == switch_box_choose_io_pad:
@@ -611,13 +622,13 @@ def map_switch_box_config_to_bits(x, y):
             cfg = get_switch_box_config(x, y, 2*i, "horizontal")
             if cfg == switch_box_choose_clb:
                 if i == 0 or i == 1:
-                    output += "01"
+                    output += RTL_CHOOSE_RIGHT
                 else:
                     print("ERROR")
             elif cfg == switch_box_choose_left:
-                output += "00"
+                output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
                 print("ERROR")
             elif cfg == switch_box_choose_top:
@@ -649,11 +660,11 @@ def map_switch_box_config_to_bits(x, y):
             if cfg == switch_box_choose_clb:
                 print("ERROR")
             elif cfg == switch_box_choose_left:
-                output += "00"
+                output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
                 print("ERROR")
             elif cfg == switch_box_choose_right:
-                output += "01"
+                output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
                 print("ERROR")
             elif cfg == switch_box_choose_io_pad:
@@ -668,13 +679,13 @@ def map_switch_box_config_to_bits(x, y):
             cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
             if cfg == switch_box_choose_clb:
                 if i == 0 or i == 1:
-                    output += "00"
+                    output += RTL_CHOOSE_LEFT
                 else:
                     print("ERROR")
             elif cfg == switch_box_choose_left:
                 print("ERROR")
             elif cfg == switch_box_choose_bottom:
-                output += "11"
+                output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
                 print("ERROR")
             elif cfg == switch_box_choose_top:
@@ -723,7 +734,7 @@ def map_switch_box_config_to_bits(x, y):
             if cfg == switch_box_choose_clb:
                 print("ERROR")
             elif cfg == switch_box_choose_left:
-                output += "00"
+                output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
                 print("ERROR")
             elif cfg == switch_box_choose_right:
@@ -746,56 +757,59 @@ def generate_bitstream_from_config_arrays():
     bitstream = ""
     # collect the top io pad configs from left to right
     for i in range(1, array_width - 1):
-        bitstream += map_edge_connection_box_config_to_bits(i, array_height - 1, "top")
+        bitstream += map_edge_connection_box_config_to_bits(i, array_height - 1, "top")[::-1]
     # collect the right edge io pad configs from top to bottom
     for i in range(array_height - 2, 0, -1):
-        bitstream += map_edge_connection_box_config_to_bits(array_width - 1, i, "right")
+        bitstream += map_edge_connection_box_config_to_bits(array_width - 1, i, "right")[::-1]
     # collect the bottom edge io pad configs from right to left
     for i in range(array_width - 2, 0, -1):
-        bitstream += map_edge_connection_box_config_to_bits(i, 0, "bottom")
+        bitstream += map_edge_connection_box_config_to_bits(i, 0, "bottom")[::-1]
     # collect the left edge io pad configs from bottom to top
     for i in range(1, array_height - 1):
-        bitstream += map_edge_connection_box_config_to_bits(0, i, "left")
+        bitstream += map_edge_connection_box_config_to_bits(0, i, "left")[::-1]
 
     # TODO RUDRA STOP THE HARDCODING
     bitstream += map_switch_box_config_to_bits(0, 2)
-    bitstream += map_connection_box_config_to_bits(1, 2, "top")
+    bitstream += map_connection_box_config_to_bits(1, 2, "top")[::-1]
     bitstream += map_switch_box_config_to_bits(1, 2)
-    bitstream += map_connection_box_config_to_bits(2, 2, "top")
+    bitstream += map_connection_box_config_to_bits(2, 2, "top")[::-1]
     bitstream += map_switch_box_config_to_bits(2, 2)
 
-    bitstream += map_connection_box_config_to_bits(2, 2, "right")
-    bitstream += map_lut_config_to_bits(2, 2)
-    bitstream += map_ff_config_to_bits(2, 2)
-    bitstream += map_connection_box_config_to_bits(2, 2, "left")
-    bitstream += map_connection_box_config_to_bits(1, 2, "right")
-    bitstream += map_lut_config_to_bits(1, 2)
-    bitstream += map_ff_config_to_bits(1, 2)
-    bitstream += map_connection_box_config_to_bits(1, 2, "left")
+    bitstream += map_connection_box_config_to_bits(2, 2, "right")[::-1]
+    bitstream += map_lut_config_to_bits(2, 2)[::-1]
+    bitstream += map_ff_config_to_bits(2, 2)[::-1]
+    bitstream += map_connection_box_config_to_bits(2, 2, "left")[::-1]
+    bitstream += map_connection_box_config_to_bits(1, 2, "right")[::-1]
+    bitstream += map_lut_config_to_bits(1, 2)[::-1]
+    bitstream += map_ff_config_to_bits(1, 2)[::-1]
+    bitstream += map_connection_box_config_to_bits(1, 2, "left")[::-1]
 
     bitstream += map_switch_box_config_to_bits(0, 1)
-    bitstream += map_connection_box_config_to_bits(1, 2, "bottom")
-    bitstream += map_connection_box_config_to_bits(1, 1, "top")
+    bitstream += map_connection_box_config_to_bits(1, 2, "bottom")[::-1]
+    bitstream += map_connection_box_config_to_bits(1, 1, "top")[::-1]
     bitstream += map_switch_box_config_to_bits(1, 1)
-    bitstream += map_connection_box_config_to_bits(2, 2, "bottom")
-    bitstream += map_connection_box_config_to_bits(2, 1, "top")
+    bitstream += map_connection_box_config_to_bits(2, 2, "bottom")[::-1]
+    bitstream += map_connection_box_config_to_bits(2, 1, "top")[::-1]
     bitstream += map_switch_box_config_to_bits(2, 1)
 
-    bitstream += map_connection_box_config_to_bits(2, 1, "right")
-    bitstream += map_lut_config_to_bits(2, 1)
-    bitstream += map_ff_config_to_bits(2, 1)
-    bitstream += map_connection_box_config_to_bits(2, 1, "left")
-    bitstream += map_connection_box_config_to_bits(1, 1, "right")
-    bitstream += map_lut_config_to_bits(1, 1)
-    bitstream += map_ff_config_to_bits(1, 1)
-    bitstream += map_connection_box_config_to_bits(1, 1, "left")
+    bitstream += map_connection_box_config_to_bits(2, 1, "right")[::-1]
+    bitstream += map_lut_config_to_bits(2, 1)[::-1]
+    bitstream += map_ff_config_to_bits(2, 1)[::-1]
+    bitstream += map_connection_box_config_to_bits(2, 1, "left")[::-1]
+    bitstream += map_connection_box_config_to_bits(1, 1, "right")[::-1]
+    bitstream += map_lut_config_to_bits(1, 1)[::-1]
+    bitstream += map_ff_config_to_bits(1, 1)[::-1]
+    bitstream += map_connection_box_config_to_bits(1, 1, "left")[::-1]
 
     bitstream += map_switch_box_config_to_bits(0, 0)
-    bitstream += map_connection_box_config_to_bits(1, 1, "bottom")
+    bitstream += map_connection_box_config_to_bits(1, 1, "bottom")[::-1]
     bitstream += map_switch_box_config_to_bits(1, 0)
-    bitstream += map_connection_box_config_to_bits(2, 1, "bottom")
+    bitstream += map_connection_box_config_to_bits(2, 1, "bottom")[::-1]
     bitstream += map_switch_box_config_to_bits(2, 1)
 
+
+    print(f"switchbox top middle: {map_switch_box_config_to_bits(1, 2)}")
+    print(f"switchbox top right: {map_switch_box_config_to_bits(2, 2)}")
     print(bitstream)
 
 
