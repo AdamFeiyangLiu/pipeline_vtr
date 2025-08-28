@@ -808,8 +808,6 @@ def generate_bitstream_from_config_arrays():
     bitstream += map_switch_box_config_to_bits(2, 1)
 
 
-    print(f"switchbox top middle: {map_switch_box_config_to_bits(1, 2)}")
-    print(f"switchbox top right: {map_switch_box_config_to_bits(2, 2)}")
     print(bitstream)
 
 
