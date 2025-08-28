@@ -2,6 +2,7 @@ import re
 import sys
 import copy
 import traceback
+from inspect import currentframe, getframeinfo
 
 
 ARBITRARY_3_BITS = "000"
@@ -14,10 +15,10 @@ lut_input_size = 4
 
 channel_width = 8
 
-net_file_path = "universal_switchbox/temp/toggle.net.post_routing"
-fasm_file_path = "universal_switchbox/temp/toggle.fasm"
-place_file_path = "universal_switchbox/temp/toggle.place"
-route_file_path = "universal_switchbox/temp/toggle.route"
+net_file_path = "universal_switchbox/temp/three_bit_counter_w_res.net.post_routing"
+fasm_file_path = "universal_switchbox/temp/three_bit_counter_w_res.fasm"
+place_file_path = "universal_switchbox/temp/three_bit_counter_w_res.place"
+route_file_path = "universal_switchbox/temp/three_bit_counter_w_res.route"
 
 connection_box_chan_0 = 1<<0
 connection_box_chan_1 = 1<<1
@@ -206,20 +207,22 @@ def get_connection_box_config(lutx, luty, side):
 
 def process_route_file():
     route_file = open(route_file_path, "r")
-    while(route_file.readline()):
-            # Look ahead to the next line without losing position
-            pos = route_file.tell()
-            next_line = route_file.readline()
-            route_file.seek(pos) 
-            if next_line.startswith("Node"):
-                break
+    
+    # # Skip all of the header information
+    # while(route_file.readline()):
+    #         # Look ahead to the next line without losing position
+    #         pos = route_file.tell()
+    #         next_line = route_file.readline()
+    #         route_file.seek(pos) 
+    #         if next_line.startswith("Node"):
+    #             break
     
 
     l = []
     for line in route_file:
-        if line.strip() == '':
-            break
         parts = line.split()
+        if len(parts) == 0 or parts[0] != "Node:":
+            continue
         # type can be either "SOURCE", "OPIN", "CHANX", "CHANY", "IPIN", or "SINK"
         # location is a coordinate type e.g. (1, 1, 0)
         # location_type is either "Class:", "Pin:", "Track:", or "Pad:"
@@ -229,8 +232,7 @@ def process_route_file():
             "location": parts[3],
             "location_type": parts[4],
             "track": parts[5],
-        })
-    
+        })    
 
     index = 0
     while (index < len(l)):
@@ -239,7 +241,6 @@ def process_route_file():
             nextval = l[index + 1]
         if (index > 0):
             prevval = l[index - 1]
-
 
         if val["type"] == "SOURCE":
             index += 1
@@ -310,11 +311,25 @@ def process_route_file():
             pass
         if val["type"] == "CHANY":
             if nextval["type"] == "CHANX":
-                # TODO
-                pass
+                x, y = parse_route_file_location(val["location"])
+                nextx, nexty = parse_route_file_location(nextval["location"])
+                nexttrack = int(nextval["track"])
+                nextdir = "horizontal"
+                if nexty < y:
+                    set_switch_box_config(x, nexty, nexttrack, nextdir, switch_box_choose_top)
+                else:
+                    set_switch_box_config(x, nexty, nexttrack, nextdir, switch_box_choose_bottom)
+
             if nextval["type"] == "CHANY":
-                # TODO
-                pass
+                x, y = parse_route_file_location(val["location"])
+                nextx, nexty = parse_route_file_location(nextval["location"])
+                nexttrack = int(nextval["track"])
+                nextdir = "vertical"
+                if nexty < y:
+                    set_switch_box_config(x, nexty, nexttrack, nextdir, switch_box_choose_top)
+                else:
+                    set_switch_box_config(x, nexty, nexttrack, nextdir, switch_box_choose_bottom)
+
             if nextval["type"] == "IPIN":
                 # if connected to io pad
                 if nextval["location_type"] == "Pad:":
@@ -325,11 +340,17 @@ def process_route_file():
                         set_edge_connection_box_config(nextx, nexty, "right", track_to_connection_box_config(track))
                     elif nextx == 0:
                         set_edge_connection_box_config(nextx, nexty, "left", track_to_connection_box_config(track))
-                    pass
+
                 # if connected to input pin of clb
                 if nextval["location_type"] == "Pin:":
-                    # TODO
-                    pass
+                    x, y = parse_route_file_location(val["location"])
+                    nextx, nexty = parse_route_file_location(nextval["location"])
+                    track = int(val["track"])
+                    if nextx > x:
+                        set_connection_box_config(nextx, nexty, "left", track_to_connection_box_config(track))
+                    else:
+                        set_connection_box_config(nextx, nexty, "right" ,track_to_connection_box_config(track))
+
             index += 1
             pass
         if val["type"] == "IPIN":
@@ -413,8 +434,20 @@ def map_connection_box_config_to_bits(lutx, luty, side):
         if get_connection_box_config(lutx, luty, side) == connection_box_unknown:
             return ARBITRARY_2_BITS
         
-def is_normal_switch_box(x, y):
-    if x > 0 and x < array_width - 1 - 1 and y > 0 and y < array_height - 1 - 1:
+def is_top_left_corner_switch_box(x, y):
+    if x == 0 and y == array_height - 1 - 1:
+        return True
+    else:
+        return False
+    
+def is_top_edge_switch_box(x, y):
+    if x > 0 and x < array_width - 1 - 1 and y == array_height - 1 - 1:
+        return True
+    else:
+        return False
+    
+def is_top_right_corner_switch_box(x, y):
+    if x == array_width - 1 - 1 and y == array_height - 1 - 1:
         return True
     else:
         return False
@@ -425,17 +458,36 @@ def is_left_edge_switch_box(x, y):
     else:
         return False
 
-def is_top_edge_switch_box(x, y):
-    if x > 0 and x < array_width - 1 - 1 and y == array_height - 1 - 1:
+def is_normal_switch_box(x, y):
+    if x > 0 and x < array_width - 1 - 1 and y > 0 and y < array_height - 1 - 1:
         return True
     else:
         return False
 
-def is_top_right_corner_switch_box(x, y):
-    if x == array_width - 1 - 1 and y == array_height - 1 - 1:
+def is_right_edge_switch_box(x, y):
+    if x == array_width - 1 - 1 and y > 0 and y < array_height - 1 - 1:
         return True
     else:
         return False
+    
+def is_bottom_left_corner_switch_box(x, y):
+    if x == 0 and y == 0:
+        return True
+    else:
+        return False
+    
+def is_bottom_edge_switch_box(x, y):
+    if x > 0 and x < array_width - 1 - 1 and y == 0:
+        return True
+    else:
+        return False
+    
+def is_bottom_right_corner_switch_box(x, y):
+    if x > 0 and x < array_width - 1 - 1 and y == 0:
+        return True
+    else:
+        return False
+
     
 
 def map_switch_box_config_to_bits(x, y):
@@ -445,35 +497,26 @@ def map_switch_box_config_to_bits(x, y):
     RTL_CHOOSE_DOWN = "11"[::-1]
 
 
+
     output = ""
 
-    if (x == 1 and y == 2) or (x == 2 and y == 2):
-        pass
-    else:
-        output = ARBITRARY_2_BITS * 16
-        return output
-
-    # case for normal switchbox
-    if is_normal_switch_box(x,y):
+    if is_top_left_corner_switch_box(x,y):
         # iterate [0,3]
         for i in range(int(channel_width/2)):
             # right_to_left[i]
             cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
             if cfg == switch_box_choose_clb:
-                if i == 0 or i == 1:
-                    output += RTL_CHOOSE_LEFT
-                else:
-                    print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
-                output += RTL_CHOOSE_DOWN
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
-                output += RTL_CHOOSE_RIGHT
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                output += RTL_CHOOSE_UP
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
@@ -483,127 +526,60 @@ def map_switch_box_config_to_bits(x, y):
                 if i == 0 or i == 1:
                     output += RTL_CHOOSE_RIGHT
                 else:
-                    print("ERROR")
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                output += RTL_CHOOSE_LEFT
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
                 output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                output += RTL_CHOOSE_UP
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
-            elif cfg == switch_box_choose_unknown:
-                output += ARBITRARY_2_BITS
-            
-            # down_to_up[i]
-            cfg = get_switch_box_config(x, y, 2*i, "vertical")
-            if cfg == switch_box_choose_clb:
-                print("ERROR")
-            elif cfg == switch_box_choose_left:
-                output += RTL_CHOOSE_LEFT
-            elif cfg == switch_box_choose_bottom:
-                output += RTL_CHOOSE_DOWN
-            elif cfg == switch_box_choose_right:
-                output += RTL_CHOOSE_RIGHT
-            elif cfg == switch_box_choose_top:
-                print("ERROR")
-            elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
-            elif cfg == switch_box_choose_unknown:
-                output += ARBITRARY_2_BITS
-
-            # up_to_down[i]
-            cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
-            if cfg == switch_box_choose_clb:
-                print("ERROR")
-            elif cfg == switch_box_choose_left:
-                output += RTL_CHOOSE_LEFT
-            elif cfg == switch_box_choose_bottom:
-                print("ERROR")
-            elif cfg == switch_box_choose_right:
-                output += RTL_CHOOSE_RIGHT
-            elif cfg == switch_box_choose_top:
-                output += RTL_CHOOSE_UP
-            elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
-            elif cfg == switch_box_choose_unknown:
-                output += ARBITRARY_2_BITS
-
-    if is_left_edge_switch_box(x,y):
-        # iterate [0,3]
-        for i in range(int(channel_width/2)):
-            # right_to_left[i]
-            cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
-            if cfg == switch_box_choose_clb:
-                print("ERROR")
-            elif cfg == switch_box_choose_left:
-                print("ERROR")
-            elif cfg == switch_box_choose_bottom:
-                print("ERROR")
-            elif cfg == switch_box_choose_right:
-                print("ERROR")
-            elif cfg == switch_box_choose_top:
-                print("ERROR")
-            elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
-            elif cfg == switch_box_choose_unknown:
-                output += ARBITRARY_2_BITS
-
-            # left_to_right[i]
-            cfg = get_switch_box_config(x, y, 2*i, "horizontal")
-            if cfg == switch_box_choose_clb:
-                if i == 0 or i == 1:
+                if i == 2:
                     output += RTL_CHOOSE_RIGHT
                 else:
-                    print("ERROR")
-            elif cfg == switch_box_choose_left:
-                print("ERROR")
-            elif cfg == switch_box_choose_bottom:
-                output += RTL_CHOOSE_DOWN
-            elif cfg == switch_box_choose_right:
-                print("ERROR")
-            elif cfg == switch_box_choose_top:
-                output += RTL_CHOOSE_UP
-            elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
             
             # down_to_up[i]
             cfg = get_switch_box_config(x, y, 2*i, "vertical")
             if cfg == switch_box_choose_clb:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                output += "ERROR"
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
-                output += RTL_CHOOSE_DOWN
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
-                output += RTL_CHOOSE_RIGHT
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
             # up_to_down[i]
             cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
             if cfg == switch_box_choose_clb:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
                 output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
-                output += RTL_CHOOSE_UP
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                if i == 0:
+                    output += RTL_CHOOSE_DOWN
+                else:
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
+
 
     if is_top_edge_switch_box(x,y):
         # iterate [0,3]
@@ -614,15 +590,15 @@ def map_switch_box_config_to_bits(x, y):
                 if i == 0 or i == 1:
                     output += RTL_CHOOSE_LEFT
                 else:
-                    print("ERROR")
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
                 output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
                 output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
@@ -634,15 +610,15 @@ def map_switch_box_config_to_bits(x, y):
                 if i == 0 or i == 1:
                     output += RTL_CHOOSE_RIGHT
                 else:
-                    print("ERROR")
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
                 output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
                 output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
@@ -651,34 +627,34 @@ def map_switch_box_config_to_bits(x, y):
             # down_to_up[i]
             cfg = get_switch_box_config(x, y, 2*i, "vertical")
             if cfg == switch_box_choose_clb:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
             # up_to_down[i]
             cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
             if cfg == switch_box_choose_clb:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
                 output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
                 output += RTL_CHOOSE_RIGHT
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
@@ -691,15 +667,15 @@ def map_switch_box_config_to_bits(x, y):
                 if i == 0 or i == 1:
                     output += RTL_CHOOSE_LEFT
                 else:
-                    print("ERROR")
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
                 output += RTL_CHOOSE_DOWN
             elif cfg == switch_box_choose_right:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
             elif cfg == switch_box_choose_unknown:
@@ -708,51 +684,516 @@ def map_switch_box_config_to_bits(x, y):
             # left_to_right[i]
             cfg = get_switch_box_config(x, y, 2*i, "horizontal")
             if cfg == switch_box_choose_clb:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
             
             # down_to_up[i]
             cfg = get_switch_box_config(x, y, 2*i, "vertical")
             if cfg == switch_box_choose_clb:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_bottom:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
             # up_to_down[i]
             cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
             if cfg == switch_box_choose_clb:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
                 output += RTL_CHOOSE_LEFT
             elif cfg == switch_box_choose_bottom:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_top:
-                print("ERROR")
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
                 print("TODO RUDRA")
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+    if is_left_edge_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(int(channel_width/2)):
+            # right_to_left[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # left_to_right[i]
+            cfg = get_switch_box_config(x, y, 2*i, "horizontal")
+            if cfg == switch_box_choose_clb:
+                if i == 0 or i == 1:
+                    output += RTL_CHOOSE_RIGHT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                output += RTL_CHOOSE_DOWN
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+            
+            # down_to_up[i]
+            cfg = get_switch_box_config(x, y, 2*i, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                output += RTL_CHOOSE_DOWN
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print("TODO RUDRA")
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # up_to_down[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                print("TODO RUDRA")
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+    # case for normal switchbox
+    if is_normal_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(int(channel_width/2)):
+            # right_to_left[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
+            if cfg == switch_box_choose_clb:
+                if i == 0 or i == 1:
+                    output += RTL_CHOOSE_LEFT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                output += RTL_CHOOSE_DOWN
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # left_to_right[i]
+            cfg = get_switch_box_config(x, y, 2*i, "horizontal")
+            if cfg == switch_box_choose_clb:
+                if i == 0 or i == 1:
+                    output += RTL_CHOOSE_RIGHT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                output += RTL_CHOOSE_DOWN
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+            
+            # down_to_up[i]
+            cfg = get_switch_box_config(x, y, 2*i, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                output += RTL_CHOOSE_DOWN
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # up_to_down[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+    if is_right_edge_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(int(channel_width/2)):
+            # right_to_left[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
+            if cfg == switch_box_choose_clb:
+                if i == 0 or i == 1:
+                    output += RTL_CHOOSE_LEFT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                output += RTL_CHOOSE_DOWN
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # left_to_right[i]
+            cfg = get_switch_box_config(x, y, 2*i, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+                print(f"x = {x}, y = {y}, i = {i}, cfg = {cfg}")
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+            
+            # down_to_up[i]
+            cfg = get_switch_box_config(x, y, 2*i, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                output += RTL_CHOOSE_DOWN
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_UP
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # up_to_down[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_DOWN
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+    if is_bottom_left_corner_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(int(channel_width/2)):
+            # right_to_left[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # left_to_right[i]
+            cfg = get_switch_box_config(x, y, 2*i, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_RIGHT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+            
+            # down_to_up[i]
+            cfg = get_switch_box_config(x, y, 2*i, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_UP
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # up_to_down[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+    if is_bottom_edge_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(int(channel_width/2)):
+            # right_to_left[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_LEFT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # left_to_right[i]
+            cfg = get_switch_box_config(x, y, 2*i, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_RIGHT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+            
+            # down_to_up[i]
+            cfg = get_switch_box_config(x, y, 2*i, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                output += RTL_CHOOSE_RIGHT
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # up_to_down[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+    
+    if is_bottom_right_corner_switch_box(x,y):
+        # iterate [0,3]
+        for i in range(int(channel_width/2)):
+            # right_to_left[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                output += RTL_CHOOSE_UP
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_LEFT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # left_to_right[i]
+            cfg = get_switch_box_config(x, y, 2*i, "horizontal")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+                print(f"x = {x}, y = {y}, i = {i}, cfg = {cfg}")
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+            
+            # down_to_up[i]
+            cfg = get_switch_box_config(x, y, 2*i, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                output += RTL_CHOOSE_LEFT
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                if i == 0:
+                    output += RTL_CHOOSE_UP
+                else:
+                    print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_unknown:
+                output += ARBITRARY_2_BITS
+
+            # up_to_down[i]
+            cfg = get_switch_box_config(x, y, 2*i+1, "vertical")
+            if cfg == switch_box_choose_clb:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_left:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_bottom:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_right:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_top:
+                print(getframeinfo(currentframe()).lineno)
+            elif cfg == switch_box_choose_io_pad:
+                print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
@@ -815,7 +1256,7 @@ def generate_bitstream_from_config_arrays():
     bitstream += map_connection_box_config_to_bits(1, 1, "bottom")[::-1]
     bitstream += map_switch_box_config_to_bits(1, 0)
     bitstream += map_connection_box_config_to_bits(2, 1, "bottom")[::-1]
-    bitstream += map_switch_box_config_to_bits(2, 1)
+    bitstream += map_switch_box_config_to_bits(2, 0)
 
 
     print(bitstream)
