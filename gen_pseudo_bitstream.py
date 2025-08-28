@@ -275,7 +275,7 @@ def process_route_file():
                 if nextx < x:
                     set_switch_box_config(nextx, y, nexttrack, nextdir, switch_box_choose_right)
                 else:
-                    set_switch_box_config(nextx, y, nexttrack, nextdir, switch_box_choose_left)
+                    set_switch_box_config(x, y, nexttrack, nextdir, switch_box_choose_left)
 
             if nextval["type"] == "CHANY":
                 x,y = parse_route_file_location(val["location"])
@@ -328,7 +328,7 @@ def process_route_file():
                 if nexty < y:
                     set_switch_box_config(x, nexty, nexttrack, nextdir, switch_box_choose_top)
                 else:
-                    set_switch_box_config(x, nexty, nexttrack, nextdir, switch_box_choose_bottom)
+                    set_switch_box_config(x, y, nexttrack, nextdir, switch_box_choose_bottom)
 
             if nextval["type"] == "IPIN":
                 # if connected to io pad
@@ -913,7 +913,6 @@ def map_switch_box_config_to_bits(x, y):
                 print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_left:
                 print(getframeinfo(currentframe()).lineno)
-                print(f"x = {x}, y = {y}, i = {i}, cfg = {cfg}")
             elif cfg == switch_box_choose_bottom:
                 print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_right:
