@@ -92,36 +92,36 @@ try:
     subprocess.run(genfasm_command)
 
     # --- Bitstream Generation step ---
-    if args.run_bitstream_generator:
-        print("\n FLOW 4: Bitstream Generation")
+    # if args.run_bitstream_generator:
+    #     print("\n FLOW 4: Bitstream Generation")
 
-        fasm_file = f"{hdl_name_without_ext}.fasm"
-        place_file = f"{hdl_name_without_ext}.place"
-        route_file = f"{hdl_name_without_ext}.route"
+    #     fasm_file = f"{hdl_name_without_ext}.fasm"
+    #     place_file = f"{hdl_name_without_ext}.place"
+    #     route_file = f"{hdl_name_without_ext}.route"
 
-        bitstream_command = [
-            "python3",
-            os.path.join(project_root, "scripts", "gen_pseudo_bitstream.py"),
-            "--fasm_file",
-            fasm_file,
-            "--place_file",
-            place_file,
-            "--route_file",
-            route_file
-        ]
+    #     bitstream_command = [
+    #         "python3",
+    #         os.path.join(project_root, "scripts", "gen_pseudo_bitstream.py"),
+    #         "--fasm_file",
+    #         fasm_file,
+    #         "--place_file",
+    #         place_file,
+    #         "--route_file",
+    #         route_file
+    #     ]
 
-        print("Running command: " + " ".join(bitstream_command))
+        # print("Running command: " + " ".join(bitstream_command))
         
         # Create bitstreams directory if it doesn't exist
-        bitstreams_dir = os.path.join(project_root, "bitstreams")
-        os.makedirs(bitstreams_dir, exist_ok=True)
+        # bitstreams_dir = os.path.join(project_root, "bitstreams")
+        # os.makedirs(bitstreams_dir, exist_ok=True)
         
-        bitstream_file_path = os.path.join(bitstreams_dir, f"{hdl_name_without_ext}.bitstream")
+        # bitstream_file_path = os.path.join(bitstreams_dir, f"{hdl_name_without_ext}.bitstream")
 
-        with open(bitstream_file_path, "w") as f:
-            subprocess.run(bitstream_command, stdout=f)
-        
-        print(f"Bitstream saved to {bitstream_file_path}")
+        # with open(bitstream_file_path, "w") as f:
+        #     subprocess.run(bitstream_command, stdout=f)
+        #     print( f )
+        # print(f"Bitstream saved to {bitstream_file_path}")
 
 finally:
     # Change back to the original directory
