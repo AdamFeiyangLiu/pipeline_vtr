@@ -72,7 +72,9 @@ print(f"Changing directory to {temp_dir}")
 try:
     os.chdir(temp_dir)
     print("Running command: " + " ".join(vpr_command))
-    subprocess.run(vpr_command)
+    print("Command will be executed in a new terminal window...")            
+    subprocess.run(['gnome-terminal', '--'] + vpr_command) 
+    # subprocess.run(vpr_command)
 
     # --- FASM Generation step ---
     print("\n FLOW 3: FASM Generation")
