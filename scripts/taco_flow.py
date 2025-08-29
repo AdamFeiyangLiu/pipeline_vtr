@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser(description='Run VTR Flow')
 parser.add_argument('--verilog_file', required=True, help='Path to the verilog file')
 parser.add_argument('--arch_file', required=True, help='Path to the architecture file')
 parser.add_argument('--route_chan_width', type=int, default=8, help='Route channel width')
+parser.add_argument('--disp', choices=['on', 'off'], default='off', help='Display option for VPR')
 parser.add_argument('--run_bitstream_generator', action='store_true', help='Run the bitstream generator (flow 4)')
 args = parser.parse_args()
 
@@ -66,15 +67,20 @@ vpr_command = [
     str(args.route_chan_width),
     "--analysis",
     "--disp",
-    "on"
+    
+    args.disp
 ]
 
 print(f"Changing directory to {temp_dir}")
 try:
     os.chdir(temp_dir)
     print("Running command: " + " ".join(vpr_command))
-    print("Command will be executed in a new terminal window...")            
-    subprocess.run(['gnome-terminal', '--'] + vpr_command) 
+    print("Command will be executed in a new terminal window...")  
+    #only new terminal if disp is on
+    if args.disp == 'on':          
+        subprocess.run(['gnome-terminal', '--'] + vpr_command) 
+    else:
+        subprocess.run(vpr_command)
     # subprocess.run(vpr_command)
 
     # --- FASM Generation step ---
