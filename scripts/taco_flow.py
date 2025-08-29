@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser(description='Run VTR Flow')
 parser.add_argument('--verilog_file', required=True, help='Path to the verilog file')
 parser.add_argument('--arch_file', required=True, help='Path to the architecture file')
 parser.add_argument('--route_chan_width', type=int, default=8, help='Route channel width')
+parser.add_argument('--run_bitstream_generator', action='store_true', help='Run the bitstream generator (flow 4)')
 args = parser.parse_args()
 
 vtr_root = os.environ.get("VTR_ROOT")
@@ -90,7 +91,41 @@ try:
     print("Running command: " + " ".join(genfasm_command))
     subprocess.run(genfasm_command)
 
+    # --- Bitstream Generation step ---
+    if args.run_bitstream_generator:
+        print("\n FLOW 4: Bitstream Generation")
+
+        fasm_file = f"{hdl_name_without_ext}.fasm"
+        place_file = f"{hdl_name_without_ext}.place"
+        route_file = f"{hdl_name_without_ext}.route"
+
+        bitstream_command = [
+            "python3",
+            os.path.join(project_root, "scripts", "gen_pseudo_bitstream.py"),
+            "--fasm_file",
+            fasm_file,
+            "--place_file",
+            place_file,
+            "--route_file",
+            route_file
+        ]
+
+        print("Running command: " + " ".join(bitstream_command))
+        
+        # Create bitstreams directory if it doesn't exist
+        bitstreams_dir = os.path.join(project_root, "bitstreams")
+        os.makedirs(bitstreams_dir, exist_ok=True)
+        
+        bitstream_file_path = os.path.join(bitstreams_dir, f"{hdl_name_without_ext}.bitstream")
+
+        with open(bitstream_file_path, "w") as f:
+            subprocess.run(bitstream_command, stdout=f)
+        
+        print(f"Bitstream saved to {bitstream_file_path}")
+
 finally:
     # Change back to the original directory
     os.chdir(project_root)
     print(f"Changed directory back to {project_root}")
+
+print("\nAll flows completed.")

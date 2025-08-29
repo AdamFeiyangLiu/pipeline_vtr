@@ -3,6 +3,7 @@ import sys
 import copy
 import traceback
 from inspect import currentframe, getframeinfo
+import argparse
 
 
 ARBITRARY_3_BITS = "000"
@@ -15,10 +16,15 @@ lut_input_size = 4
 
 channel_width = 8
 
-net_file_path = "universal_switchbox/temp/three_bit_counter_w_res.net.post_routing"
-fasm_file_path = "universal_switchbox/temp/three_bit_counter_w_res.fasm"
-place_file_path = "universal_switchbox/temp/three_bit_counter_w_res.place"
-route_file_path = "universal_switchbox/temp/three_bit_counter_w_res.route"
+parser = argparse.ArgumentParser(description='Generate pseudo bitstream.')
+parser.add_argument('--fasm_file', required=True, help='Path to the .fasm file')
+parser.add_argument('--place_file', required=True, help='Path to the .place file')
+parser.add_argument('--route_file', required=True, help='Path to the .route file')
+args = parser.parse_args()
+
+fasm_file_path = args.fasm_file
+place_file_path = args.place_file
+route_file_path = args.route_file
 
 connection_box_chan_0 = 1<<0
 connection_box_chan_1 = 1<<1
