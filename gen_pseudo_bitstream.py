@@ -600,7 +600,10 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_top:
                 print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                if i == 2:
+                    output += RTL_CHOOSE_LEFT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
@@ -620,7 +623,10 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_top:
                 print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                if i == 2:
+                    output += RTL_CHOOSE_RIGHT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
             
@@ -677,7 +683,10 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_top:
                 print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                if i == 2:
+                    output += RTL_CHOOSE_LEFT
+                else:
+                    print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
@@ -728,7 +737,10 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_top:
                 print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                if i == 0:
+                    output += RTL_CHOOSE_DOWN
+                else:
+                    print("ERROR")
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
@@ -785,7 +797,10 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_top:
                 print(getframeinfo(currentframe()).lineno)
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                if i == 0:
+                    output += RTL_CHOOSE_UP
+                else:
+                    print("ERROR")
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
@@ -802,7 +817,10 @@ def map_switch_box_config_to_bits(x, y):
             elif cfg == switch_box_choose_top:
                 output += RTL_CHOOSE_UP
             elif cfg == switch_box_choose_io_pad:
-                print("TODO RUDRA")
+                if i == 0:
+                    output += RTL_CHOOSE_DOWN
+                else:
+                    print("ERROR")
             elif cfg == switch_box_choose_unknown:
                 output += ARBITRARY_2_BITS
 
