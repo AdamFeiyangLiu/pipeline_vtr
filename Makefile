@@ -1,4 +1,4 @@
-HDL ?= hdl/toggle_w_res.v
+HDL ?= hdl/toggle.v
 ARCH ?= arch/Arch_2x2.xml
 DISP ?= off
 ROUTE_CHAN_WIDTH ?= 8
@@ -10,4 +10,4 @@ run:
 	python3 scripts/gen_pseudo_bitstream.py --fasm_file temp/$(hdl_name).fasm --place_file temp/$(hdl_name).place --route_file temp/$(hdl_name).route 
 clean:
 	rm -rf temp/
-	rm -rf bitstreams/
+# 	rm -rf bitstreams/

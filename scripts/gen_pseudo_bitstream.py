@@ -4,6 +4,7 @@ import copy
 import traceback
 from inspect import currentframe, getframeinfo
 import argparse
+import os
 
 
 ARBITRARY_3_BITS = "000"
@@ -1281,7 +1282,11 @@ def generate_bitstream_from_config_arrays():
     bitstream += map_connection_box_config_to_bits(2, 1, "bottom")[::-1]
     bitstream += map_switch_box_config_to_bits(2, 0)
 
-
+    hdl_name = fasm_file_path.split('/')[-1].split('.')[0]
+    if not os.path.exists('bitstreams'):
+        os.makedirs('bitstreams')
+    with open(f'bitstreams/{hdl_name}.txt', 'w') as f:
+        f.write(bitstream)
     print(bitstream)
 
 
